@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD Flashcards</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e8eaf0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 20px;
+  }
+
+  h1 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #4a5060;
+    margin-bottom: 22px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 700px;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary { background: #4f6ef7; color: #fff; }
+  .btn-primary:hover { background: #3a58e0; }
+  .btn-ghost {
+    background: #1e2130;
+    color: #8a90a8;
+    border: 1px solid #252a3a;
+  }
+  .btn-ghost:hover { background: #252840; color: #dde1f0; }
+  .btn-ghost.active { color: #4f6ef7; border-color: #4f6ef7; }
+
+  .progress-text {
+    font-size: 12px;
+    color: #4a5060;
+    font-variant-numeric: tabular-nums;
+    min-width: 50px;
+    text-align: right;
+    margin-left: auto;
+  }
+
+  .progress-bar-wrap {
+    width: 100%;
+    max-width: 700px;
+    height: 3px;
+    background: #1a1d2e;
+    border-radius: 2px;
+    margin-bottom: 18px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: #4f6ef7;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  /* Card — single div, swaps content */
+  .card {
+    width: 100%;
+    max-width: 700px;
+    border-radius: 16px;
+    border: 1px solid #252a3a;
+    padding: 40px 44px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+  }
+  .card:hover { border-color: #353b55; }
+
+  .card.front {
+    background: #1a1d2e;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .card.back {
+    background: #151724;
+    justify-content: flex-start;
+  }
+
+  .card-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .card.front .card-label { color: #4f6ef7; }
+  .card.back .card-label { color: #3ecf8e; }
+
+  .card-question {
+    font-size: 22px;
+    font-weight: 600;
+    color: #dde1f0;
+    line-height: 1.4;
+  }
+  .card-filename {
+    font-size: 11px;
+    color: #2e3348;
+    margin-top: 18px;
+  }
+
+  .card-answer {
+    font-size: 14px;
+    color: #b8bdd0;
+    line-height: 1.8;
+  }
+  .card-answer h1,
+  .card-answer h2,
+  .card-answer h3 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #5a6280;
+    margin: 16px 0 8px;
+  }
+  .card-answer ul { padding-left: 20px; margin: 8px 0; }
+  .card-answer li { margin-bottom: 6px; }
+  .card-answer p { margin: 6px 0; }
+  .card-answer strong { color: #dde1f0; }
+  .card-answer em { color: #9aa0c0; }
+  .card-answer hr { border: none; border-top: 1px solid #252a3a; margin: 12px 0; }
+
+  /* Nav */
+  .nav {
+    display: flex;
+    gap: 14px;
+    margin-top: 18px;
+    align-items: center;
+  }
+  .nav-btn {
+    background: #1e2130;
+    border: 1px solid #252a3a;
+    color: #8a90a8;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    line-height: 1;
+  }
+  .nav-btn:hover:not(:disabled) { background: #252840; color: #dde1f0; }
+  .nav-btn:disabled { opacity: 0.2; cursor: default; }
+
+  .hint {
+    font-size: 11px;
+    color: #2e3348;
+    margin-top: 14px;
+    text-align: center;
+  }
+
+  /* Empty */
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 260px;
+    width: 100%;
+    max-width: 700px;
+    background: #1a1d2e;
+    border: 1px dashed #252a3a;
+    border-radius: 16px;
+    color: #4a5060;
+    text-align: center;
+    padding: 40px;
+  }
+  .empty-icon { font-size: 34px; opacity: 0.45; }
+  .empty-title { font-size: 15px; font-weight: 600; color: #6a7080; }
+  .empty-sub { font-size: 13px; max-width: 340px; }
+
+  #file-input { display: none; }
+</style>
+</head>
+<body>
+
+<h1>MD Flashcards</h1>
+
+<div class="controls">
+  <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">📁 Load Folder</button>
+  <input type="file" id="file-input" webkitdirectory multiple>
+  <button class="btn btn-ghost" id="shuffle-btn" onclick="toggleShuffle()">⇄ Shuffle</button>
+  <button class="btn btn-ghost" id="restart-btn" onclick="restart()" style="display:none">↺ Restart</button>
+  <span class="progress-text" id="progress-text"></span>
+</div>
+
+<div class="progress-bar-wrap" id="progress-bar-wrap" style="display:none">
+  <div class="progress-bar-fill" id="progress-bar-fill" style="width:0%"></div>
+</div>
+
+<div id="main"></div>
+
+<div class="nav" id="nav" style="display:none">
+  <button class="nav-btn" id="prev-btn" onclick="goTo(currentIndex - 1)">&#8249;</button>
+  <button class="nav-btn" id="next-btn" onclick="goTo(currentIndex + 1)">&#8250;</button>
+</div>
+
+<p class="hint" id="hint"></p>
+
+<script>
+  var cards = [];
+  var order = [];
+  var currentIndex = 0;
+  var shuffleOn = false;
+  var showingAnswer = false;
+
+  document.getElementById('file-input').addEventListener('change', function(e) {
+    var files = Array.from(e.target.files).filter(function(f) {
+      return f.name.toLowerCase().endsWith('.md');
+    });
+    if (!files.length) { renderEmpty('No .md files found.'); return; }
+    Promise.all(files.map(readFile)).then(function(results) {
+      cards = results.filter(Boolean);
+      if (!cards.length) { renderEmpty('Could not parse any cards.'); return; }
+      buildOrder();
+      currentIndex = 0;
+      showCard();
+      document.getElementById('restart-btn').style.display = '';
+    });
+    e.target.value = '';
+  });
+
+  function readFile(file) {
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        var raw = ev.target.result || '';
+        // Normalise line endings
+        var text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        var lines = text.split('\n');
+        var question = '';
+        var bodyStart = 0;
+        for (var i = 0; i < lines.length; i++) {
+          var l = lines[i].trim();
+          if (!l) continue;
+          if (l.startsWith('#')) {
+            question = l.replace(/^#+\s*/, '').trim();
+          } else {
+            question = l;
+          }
+          bodyStart = i + 1;
+          break;
+        }
+        var body = lines.slice(bodyStart).join('\n').trim();
+        resolve({
+          filename: file.name.replace(/\.md$/i, ''),
+          question: question || file.name.replace(/\.md$/i, ''),
+          body: body
+        });
+      };
+      reader.onerror = function() { resolve(null); };
+      reader.readAsText(file);
+    });
+  }
+
+  function buildOrder() {
+    order = cards.map(function(_, i) { return i; });
+    if (shuffleOn) {
+      for (var i = order.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = order[i]; order[i] = order[j]; order[j] = t;
+      }
+    }
+  }
+
+  function showCard() {
+    showingAnswer = false;
+    renderFront();
+    updateChrome();
+  }
+
+  function renderFront() {
+    var card = cards[order[currentIndex]];
+    document.getElementById('main').innerHTML =
+      '<div class="card front" onclick="showAnswer()">' +
+        '<span class="card-label">Question</span>' +
+        '<div class="card-question">' + esc(card.question) + '</div>' +
+        '<div class="card-filename">' + esc(card.filename) + '</div>' +
+      '</div>';
+    document.getElementById('hint').textContent = 'Click to reveal answer  ·  Space  ·  \u2190 \u2192 to navigate';
+  }
+
+  function showAnswer() {
+    showingAnswer = true;
+    var card = cards[order[currentIndex]];
+    document.getElementById('main').innerHTML =
+      '<div class="card back" onclick="showCard()">' +
+        '<span class="card-label">Answer</span>' +
+        '<div class="card-answer">' + renderMd(card.body) + '</div>' +
+      '</div>';
+    document.getElementById('hint').textContent = 'Click to flip back  ·  \u2190 \u2192 to navigate';
+  }
+
+  function goTo(idx) {
+    if (idx < 0 || idx >= cards.length) return;
+    currentIndex = idx;
+    showCard();
+  }
+
+  function updateChrome() {
+    var total = cards.length;
+    var pct = ((currentIndex + 1) / total * 100).toFixed(1);
+    document.getElementById('progress-text').textContent = (currentIndex + 1) + ' / ' + total;
+    document.getElementById('progress-bar-wrap').style.display = '';
+    document.getElementById('progress-bar-fill').style.width = pct + '%';
+    document.getElementById('nav').style.display = 'flex';
+    document.getElementById('prev-btn').disabled = currentIndex === 0;
+    document.getElementById('next-btn').disabled = currentIndex === total - 1;
+  }
+
+  function toggleShuffle() {
+    shuffleOn = !shuffleOn;
+    document.getElementById('shuffle-btn').classList.toggle('active', shuffleOn);
+    if (cards.length) { buildOrder(); currentIndex = 0; showCard(); }
+  }
+
+  function restart() {
+    buildOrder();
+    currentIndex = 0;
+    showCard();
+  }
+
+  // Minimal but robust MD renderer
+  function renderMd(text) {
+    if (!text) return '<span style="color:#3a3f55">No answer content.</span>';
+
+    var lines = text.split('\n');
+    var out = '';
+    var inList = false;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var trimmed = line.trim();
+
+      // Heading
+      var hm = trimmed.match(/^(#{1,3})\s+(.+)$/);
+      if (hm) {
+        if (inList) { out += '</ul>'; inList = false; }
+        var tag = 'h' + hm[1].length;
+        out += '<' + tag + '>' + inline(hm[2]) + '</' + tag + '>';
+        continue;
+      }
+
+      // HR
+      if (/^[-*]{3,}$/.test(trimmed)) {
+        if (inList) { out += '</ul>'; inList = false; }
+        out += '<hr>';
+        continue;
+      }
+
+      // Bullet
+      var bm = trimmed.match(/^[-*]\s+(.+)$/);
+      if (bm) {
+        if (!inList) { out += '<ul>'; inList = true; }
+        out += '<li>' + inline(bm[1]) + '</li>';
+        continue;
+      }
+
+      // Blank line
+      if (!trimmed) {
+        if (inList) { out += '</ul>'; inList = false; }
+        continue;
+      }
+
+      // Regular line
+      if (inList) { out += '</ul>'; inList = false; }
+      out += '<p>' + inline(trimmed) + '</p>';
+    }
+
+    if (inList) out += '</ul>';
+    return out;
+  }
+
+  function inline(str) {
+    var s = esc(str);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    s = s.replace(/`(.+?)`/g, '<code>$1</code>');
+    return s;
+  }
+
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Keyboard
+  document.addEventListener('keydown', function(e) {
+    if (!cards.length) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); goTo(currentIndex + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(currentIndex - 1); }
+    else if (e.key === ' ') {
+      e.preventDefault();
+      if (showingAnswer) showCard(); else showAnswer();
+    }
+  });
+
+  // Init
+  renderEmpty();
+
+  function renderEmpty(msg) {
+    document.getElementById('main').innerHTML =
+      '<div class="empty">' +
+        '<div class="empty-icon">\uD83D\uDCC2</div>' +
+        '<div class="empty-title">Load a folder of .md files</div>' +
+        '<div class="empty-sub">' + esc(msg || 'Each file = one card. First heading or line = question. Rest = answer.') + '</div>' +
+      '</div>';
+    document.getElementById('progress-bar-wrap').style.display = 'none';
+    document.getElementById('nav').style.display = 'none';
+    document.getElementById('progress-text').textContent = '';
+    document.getElementById('hint').textContent = '';
+  }
+</script>
+</body>
+</html>
