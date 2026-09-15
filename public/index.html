@@ -241,6 +241,135 @@
   .empty-sub { font-size: 13px; max-width: 340px; }
 
   #main { width: 100%; max-width: 700px; }
+
+  /* ---------- folder picker ---------- */
+
+  .picker-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 29, 46, 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+
+  .picker {
+    background: #fff;
+    border-radius: 16px;
+    width: min(100%, 460px);
+    max-height: min(560px, 86vh);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+  }
+
+  .picker-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 20px 12px;
+    flex-shrink: 0;
+  }
+  .picker-title { font-size: 14px; font-weight: 600; color: #1a1d2e; }
+  .picker-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+    color: #a0a8be;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .picker-close:hover { background: #f0f2f8; color: #1a1d2e; }
+
+  .picker-crumbs {
+    padding: 0 20px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .crumb {
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    color: #4f6ef7;
+    cursor: pointer;
+  }
+  .crumb:hover { background: #eef1fd; }
+  .crumb.current { color: #6a7090; cursor: default; }
+  .crumb.current:hover { background: none; }
+  .crumb-sep { color: #c8ccd8; font-size: 12px; }
+
+  .picker-list {
+    flex: 1;
+    overflow-y: auto;
+    border-top: 1px solid #eef0f6;
+    border-bottom: 1px solid #eef0f6;
+    padding: 6px 0;
+    min-height: 140px;
+  }
+  .picker-list::-webkit-scrollbar { width: 4px; }
+  .picker-list::-webkit-scrollbar-track { background: transparent; }
+  .picker-list::-webkit-scrollbar-thumb { background: #dde0ea; border-radius: 2px; }
+
+  .folder-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 20px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 13px;
+    color: #1a1d2e;
+    text-align: left;
+    cursor: pointer;
+  }
+  .folder-row:hover { background: #f4f5f7; }
+  .folder-row .chev { margin-left: auto; color: #c8ccd8; font-size: 16px; }
+
+  .picker-note {
+    padding: 16px 20px;
+    font-size: 12px;
+    color: #a0a8be;
+    text-align: center;
+  }
+
+  .picker-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .picker-check {
+    font-size: 12px;
+    color: #6a7090;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: auto;
+    cursor: pointer;
+  }
+  .picker-check input { accent-color: #4f6ef7; }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+
+  @media (max-width: 420px) {
+    .picker-check { flex-basis: 100%; margin-right: 0; margin-bottom: 4px; }
+    #picker-cancel { margin-left: auto; }
+  }
 </style>
 </head>
 <body>
@@ -248,9 +377,9 @@
 <h1>MD Flashcards</h1>
 
 <div class="controls">
-  <button class="btn btn-primary" onclick="openChooser()">📂 Load from Dropbox</button>
-  <button class="btn btn-ghost" id="shuffle-btn" onclick="toggleShuffle()">⇄ Shuffle</button>
-  <button class="btn btn-ghost" id="restart-btn" onclick="restart()" style="display:none">↺ Restart</button>
+  <button class="btn btn-primary" id="load-btn"></button>
+  <button class="btn btn-ghost" id="shuffle-btn" onclick="toggleShuffle()">&#8644; Shuffle</button>
+  <button class="btn btn-ghost" id="restart-btn" onclick="restart()" style="display:none">&#8634; Restart</button>
   <span class="progress-text" id="progress-text"></span>
 </div>
 
@@ -268,43 +397,433 @@
 <p class="hint" id="hint"></p>
 <p class="status" id="status"></p>
 
-<script src="https://www.dropbox.com/static/api/2/dropins.js" id="dropboxjs" data-app-key="qrd2zyn6n4hxt6g"></script>
+<div class="picker-overlay" id="picker-overlay" style="display:none">
+  <div class="picker">
+    <div class="picker-head">
+      <span class="picker-title">Choose a folder</span>
+      <button class="picker-close" id="picker-close" title="Close">&times;</button>
+    </div>
+    <div class="picker-crumbs" id="picker-crumbs"></div>
+    <div class="picker-list" id="picker-list"></div>
+    <div class="picker-foot">
+      <label class="picker-check">
+        <input type="checkbox" id="recurse-check"> Include subfolders
+      </label>
+      <button class="btn btn-ghost" id="picker-cancel">Cancel</button>
+      <button class="btn btn-primary" id="picker-use">Use this folder</button>
+    </div>
+  </div>
+</div>
 
 <script>
+  /* ============================================================
+     Dropbox OAuth (PKCE, no backend) + folder-based card loading
+     ============================================================ */
+
+  var APP_KEY      = 'qrd2zyn6n4hxt6g';
+  var REDIRECT_URI = location.origin + location.pathname;
+  var SCOPES       = 'files.metadata.read files.content.read';
+
+  var TOKEN_KEY    = 'dbx_token';
+  var VERIFIER_KEY = 'dbx_pkce_verifier';
+  var STATE_KEY    = 'dbx_pkce_state';
+
+  var MAX_PARALLEL_DOWNLOADS = 6;
+
+  /* ---------- session storage helpers (private mode safe) ---------- */
+
+  function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+  function ssDel(k) { try { sessionStorage.removeItem(k); } catch (e) {} }
+
+  function getToken() { return ssGet(TOKEN_KEY); }
+
+  /* ---------- PKCE helpers ---------- */
+
+  function b64url(bytes) {
+    var arr = new Uint8Array(bytes);
+    var s = '';
+    for (var i = 0; i < arr.length; i++) s += String.fromCharCode(arr[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function randomB64(n) {
+    return b64url(crypto.getRandomValues(new Uint8Array(n)));
+  }
+
+  function sha256B64url(str) {
+    return crypto.subtle
+      .digest('SHA-256', new TextEncoder().encode(str))
+      .then(function (buf) { return b64url(buf); });
+  }
+
+  /* ---------- auth ---------- */
+
+  function startAuth() {
+    if (!window.crypto || !crypto.subtle) {
+      setStatus('Sign-in needs a secure (https) connection.', true);
+      return;
+    }
+    var verifier = randomB64(64);
+    var state = randomB64(16);
+    sha256B64url(verifier).then(function (challenge) {
+      ssSet(VERIFIER_KEY, verifier);
+      ssSet(STATE_KEY, state);
+      location.href = 'https://www.dropbox.com/oauth2/authorize'
+        + '?client_id=' + encodeURIComponent(APP_KEY)
+        + '&response_type=code'
+        + '&code_challenge=' + encodeURIComponent(challenge)
+        + '&code_challenge_method=S256'
+        + '&token_access_type=online'
+        + '&scope=' + encodeURIComponent(SCOPES)
+        + '&state=' + encodeURIComponent(state)
+        + '&redirect_uri=' + encodeURIComponent(REDIRECT_URI);
+    });
+  }
+
+  // Returns a promise resolving true if we just completed a sign-in.
+  function handleAuthRedirect() {
+    var params = new URLSearchParams(location.search);
+    var code = params.get('code');
+    var error = params.get('error');
+    var state = params.get('state');
+
+    if (!code && !error) return Promise.resolve(false);
+
+    var expectedState = ssGet(STATE_KEY);
+    var verifier = ssGet(VERIFIER_KEY);
+    ssDel(STATE_KEY);
+    ssDel(VERIFIER_KEY);
+
+    // Strip the OAuth params so a refresh doesn't replay them.
+    history.replaceState({}, document.title, REDIRECT_URI);
+
+    if (error) {
+      setStatus(error === 'access_denied'
+        ? 'Dropbox access was declined.'
+        : 'Dropbox authorization failed: ' + error, true);
+      return Promise.resolve(false);
+    }
+    if (!expectedState || state !== expectedState) {
+      setStatus('Sign-in could not be verified. Please connect again.', true);
+      return Promise.resolve(false);
+    }
+    if (!verifier) {
+      setStatus('Sign-in session was lost. Please connect again.', true);
+      return Promise.resolve(false);
+    }
+
+    setStatus('Completing sign-in…');
+    var body = new URLSearchParams();
+    body.set('grant_type', 'authorization_code');
+    body.set('code', code);
+    body.set('client_id', APP_KEY);
+    body.set('code_verifier', verifier);
+    body.set('redirect_uri', REDIRECT_URI);
+
+    return fetch('https://api.dropboxapi.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+          return JSON.parse(t);
+        });
+      })
+      .then(function (data) {
+        if (!data.access_token) throw new Error('No access token returned.');
+        ssSet(TOKEN_KEY, data.access_token);
+        setStatus('');
+        return true;
+      })
+      .catch(function (e) {
+        setStatus('Could not complete sign-in: ' + shortErr(e), true);
+        return false;
+      });
+  }
+
+  function signOut() {
+    ssDel(TOKEN_KEY);
+    cards = [];
+    order = [];
+    syncLoadButton();
+    renderEmpty();
+    setStatus('');
+  }
+
+  /* ---------- Dropbox API ---------- */
+
+  function apiCheck(res) {
+    if (res.status === 401) {
+      ssDel(TOKEN_KEY);
+      syncLoadButton();
+      throw new Error('Your Dropbox session expired — please connect again.');
+    }
+    if (!res.ok) {
+      return res.text().then(function (t) {
+        throw new Error(t ? t.slice(0, 200) : ('HTTP ' + res.status));
+      });
+    }
+    return res;
+  }
+
+  function rpc(endpoint, args) {
+    return fetch('https://api.dropboxapi.com/2/' + endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + getToken(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(args)
+    }).then(apiCheck).then(function (r) { return r.json(); });
+  }
+
+  // path '' means the root of the app's Dropbox scope.
+  function listFolder(path, recursive) {
+    var all = [];
+    function step(res) {
+      all = all.concat(res.entries || []);
+      if (res.has_more) {
+        return rpc('files/list_folder/continue', { cursor: res.cursor }).then(step);
+      }
+      return all;
+    }
+    return rpc('files/list_folder', {
+      path: path,
+      recursive: !!recursive,
+      include_deleted: false,
+      include_media_info: false,
+      include_non_downloadable_files: false,
+      limit: 2000
+    }).then(step);
+  }
+
+  // Uses the file id (always ASCII) so the API header stays header-safe
+  // even for paths with non-Latin characters.
+  function downloadFile(fileId) {
+    return fetch('https://content.dropboxapi.com/2/files/download', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + getToken(),
+        'Dropbox-API-Arg': JSON.stringify({ path: fileId })
+      }
+    }).then(apiCheck).then(function (r) { return r.text(); });
+  }
+
+  function isMd(entry) {
+    return entry['.tag'] === 'file' && /\.md$/i.test(entry.name);
+  }
+
+  function byName(a, b) {
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  /* ---------- folder picker ---------- */
+
+  // pickerStack holds the folders we've drilled into: { name, path }.
+  // name preserves the display casing; path is the (lowercased) API path.
+  var pickerStack = [];
+  var pickerPath = '';       // '' = Dropbox root
+  var pickerBusy = false;
+
+  function openPicker() {
+    if (!getToken()) { startAuth(); return; }
+    document.getElementById('picker-overlay').style.display = 'flex';
+    navigateTo([]);
+  }
+
+  function navigateTo(stack) {
+    pickerStack = stack;
+    loadPickerPath(stack.length ? stack[stack.length - 1].path : '');
+  }
+
+  function closePicker() {
+    document.getElementById('picker-overlay').style.display = 'none';
+  }
+
+  function pickerOpen() {
+    return document.getElementById('picker-overlay').style.display !== 'none';
+  }
+
+  function loadPickerPath(path) {
+    pickerPath = path;
+    pickerBusy = true;
+    renderCrumbs();
+    document.getElementById('picker-list').innerHTML =
+      '<div class="picker-note">Loading…</div>';
+    document.getElementById('picker-use').disabled = true;
+
+    listFolder(path, false)
+      .then(function (entries) {
+        if (pickerPath !== path) return; // a newer navigation won
+        pickerBusy = false;
+        renderPickerList(entries);
+      })
+      .catch(function (e) {
+        pickerBusy = false;
+        document.getElementById('picker-list').innerHTML =
+          '<div class="picker-note">' + esc(shortErr(e)) + '</div>';
+        if (!getToken()) { closePicker(); setStatus(shortErr(e), true); }
+      });
+  }
+
+  function renderCrumbs() {
+    var wrap = document.getElementById('picker-crumbs');
+    wrap.innerHTML = '';
+
+    function crumb(label, depth, isCurrent) {
+      var b = document.createElement('button');
+      b.className = 'crumb' + (isCurrent ? ' current' : '');
+      b.textContent = label;
+      if (!isCurrent) {
+        b.addEventListener('click', function () { navigateTo(pickerStack.slice(0, depth)); });
+      }
+      wrap.appendChild(b);
+    }
+    function sep() {
+      var s = document.createElement('span');
+      s.className = 'crumb-sep';
+      s.textContent = '/';
+      wrap.appendChild(s);
+    }
+
+    crumb('Dropbox', 0, pickerStack.length === 0);
+    for (var i = 0; i < pickerStack.length; i++) {
+      sep();
+      crumb(pickerStack[i].name, i + 1, i === pickerStack.length - 1);
+    }
+  }
+
+  function renderPickerList(entries) {
+    var list = document.getElementById('picker-list');
+    var folders = entries.filter(function (e) { return e['.tag'] === 'folder'; }).sort(byName);
+    var mdCount = entries.filter(isMd).length;
+
+    list.innerHTML = '';
+
+    if (!folders.length) {
+      var note = document.createElement('div');
+      note.className = 'picker-note';
+      note.textContent = mdCount
+        ? 'No subfolders here.'
+        : 'This folder is empty.';
+      list.appendChild(note);
+    } else {
+      folders.forEach(function (f) {
+        var row = document.createElement('button');
+        row.className = 'folder-row';
+        row.innerHTML = '<span>📁</span><span></span><span class="chev">›</span>';
+        row.children[1].textContent = f.name;
+        row.addEventListener('click', function () {
+          navigateTo(pickerStack.concat([{ name: f.name, path: f.path_lower }]));
+        });
+        list.appendChild(row);
+      });
+    }
+
+    var useBtn = document.getElementById('picker-use');
+    useBtn.disabled = false;
+    useBtn.textContent = mdCount
+      ? 'Use this folder (' + mdCount + ' .md)'
+      : 'Use this folder';
+  }
+
+  function useCurrentFolder() {
+    if (pickerBusy) return;
+    var path = pickerPath;
+    var label = pickerStack.length ? pickerStack[pickerStack.length - 1].name : 'Dropbox';
+    var recursive = document.getElementById('recurse-check').checked;
+    closePicker();
+    loadFolderCards(path, recursive, label);
+  }
+
+  /* ---------- loading cards from a folder ---------- */
+
+  function loadFolderCards(path, recursive, label) {
+    setStatus('Reading ' + label + '…');
+    renderEmpty('Reading folder…');
+
+    listFolder(path, recursive)
+      .then(function (entries) {
+        var files = entries.filter(isMd).sort(byName);
+        if (!files.length) {
+          renderEmpty('No .md files found in that folder.');
+          setStatus('');
+          return;
+        }
+        setStatus('Loading ' + files.length + ' card' + (files.length !== 1 ? 's' : '') + '…');
+        return fetchAll(files).then(function (results) {
+          cards = results.filter(Boolean);
+          if (!cards.length) {
+            renderEmpty('Could not read any of those files.');
+            setStatus('Could not load any cards.', true);
+            return;
+          }
+          var failed = files.length - cards.length;
+          buildOrder();
+          currentIndex = 0;
+          showCard();
+          document.getElementById('restart-btn').style.display = '';
+          setStatus(failed ? failed + ' file' + (failed !== 1 ? 's' : '') + ' could not be read.' : '', !!failed);
+        });
+      })
+      .catch(function (e) {
+        renderEmpty('Could not open that folder.');
+        setStatus(shortErr(e), true);
+      });
+  }
+
+  // Downloads with a small concurrency cap so a big folder doesn't
+  // fire hundreds of simultaneous requests.
+  function fetchAll(files) {
+    var results = new Array(files.length);
+    var next = 0;
+    var done = 0;
+
+    return new Promise(function (resolve) {
+      function pump() {
+        if (next >= files.length) {
+          if (done >= files.length) resolve(results);
+          return;
+        }
+        var i = next++;
+        var f = files[i];
+        downloadFile(f.id)
+          .then(function (text) { results[i] = parseCard(text, f.name); })
+          .catch(function () { results[i] = null; })
+          .then(function () {
+            done++;
+            setStatus('Loading ' + done + ' / ' + files.length + '…');
+            if (done >= files.length) resolve(results);
+            else pump();
+          });
+      }
+      var lanes = Math.min(MAX_PARALLEL_DOWNLOADS, files.length);
+      for (var k = 0; k < lanes; k++) pump();
+    });
+  }
+
+  function shortErr(e) {
+    var m = (e && e.message) ? e.message : String(e);
+    // Dropbox returns JSON error bodies; surface the useful summary if present.
+    try {
+      var parsed = JSON.parse(m);
+      if (parsed.error_summary) return parsed.error_summary;
+    } catch (ignored) {}
+    return m;
+  }
+
+  /* ============================================================
+     Card logic (unchanged)
+     ============================================================ */
+
   var cards = [];
   var order = [];
   var currentIndex = 0;
   var shuffleOn = false;
   var showingAnswer = false;
-
-  function openChooser() {
-    Dropbox.choose({
-      success: function(files) {
-        setStatus('Loading ' + files.length + ' card' + (files.length !== 1 ? 's' : '') + '...');
-        var fetches = files.map(function(f) {
-          var url = f.link.replace('?dl=0', '?dl=1');
-          return fetch(url)
-            .then(function(r) { return r.text(); })
-            .then(function(text) { return parseCard(text, f.name); })
-            .catch(function() { return null; });
-        });
-        Promise.all(fetches).then(function(results) {
-          cards = results.filter(Boolean);
-          if (!cards.length) { setStatus('Could not load any cards.', true); return; }
-          buildOrder();
-          currentIndex = 0;
-          showCard();
-          document.getElementById('restart-btn').style.display = '';
-          setStatus('');
-        });
-      },
-      cancel: function() {},
-      linkType: 'direct',
-      multiselect: true,
-      extensions: ['.md'],
-      folderselect: false
-    });
-  }
 
   function parseCard(text, filename) {
     var raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
@@ -350,7 +869,7 @@
         '<div class="card-question">' + esc(card.question) + '</div>' +
         '<div class="card-filename">' + esc(card.filename) + '</div>' +
       '</div>';
-    document.getElementById('hint').textContent = 'Tap to reveal answer  \u00b7  \u2190 \u2192 to navigate';
+    document.getElementById('hint').textContent = 'Tap to reveal answer  ·  ← → to navigate';
   }
 
   function showAnswer() {
@@ -361,7 +880,7 @@
         '<span class="card-label">Answer</span>' +
         '<div class="card-answer">' + renderMd(card.body) + '</div>' +
       '</div>';
-    document.getElementById('hint').textContent = 'Tap to flip back  \u00b7  \u2190 \u2192 to navigate';
+    document.getElementById('hint').textContent = 'Tap to flip back  ·  ← → to navigate';
   }
 
   function goTo(idx) {
@@ -452,6 +971,10 @@
   }
 
   document.addEventListener('keydown', function(e) {
+    if (pickerOpen()) {
+      if (e.key === 'Escape') { e.preventDefault(); closePicker(); }
+      return;
+    }
     if (!cards.length) return;
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); goTo(currentIndex + 1); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(currentIndex - 1); }
@@ -461,20 +984,50 @@
     }
   });
 
-  renderEmpty();
-
   function renderEmpty(msg) {
+    var connected = !!getToken();
     document.getElementById('main').innerHTML =
       '<div class="empty">' +
-        '<div class="empty-icon">\uD83D\uDCC2</div>' +
-        '<div class="empty-title">Load cards from Dropbox</div>' +
-        '<div class="empty-sub">' + esc(msg || 'Select one or more .md files. Each file = one card.') + '</div>' +
+        '<div class="empty-icon">📂</div>' +
+        '<div class="empty-title">' +
+          (connected ? 'Pick a folder of cards' : 'Connect your Dropbox') +
+        '</div>' +
+        '<div class="empty-sub">' + esc(msg || (connected
+          ? 'Choose a Dropbox folder. Every .md file inside becomes one card.'
+          : 'Sign in to Dropbox, then pick a folder. Every .md file inside becomes one card.')) +
+        '</div>' +
       '</div>';
     document.getElementById('progress-bar-wrap').style.display = 'none';
     document.getElementById('nav').style.display = 'none';
     document.getElementById('progress-text').textContent = '';
     document.getElementById('hint').textContent = '';
   }
+
+  /* ---------- wiring ---------- */
+
+  function syncLoadButton() {
+    var btn = document.getElementById('load-btn');
+    btn.textContent = getToken() ? '📂 Choose folder' : 'Connect Dropbox';
+  }
+
+  document.getElementById('load-btn').addEventListener('click', function () {
+    if (getToken()) openPicker(); else startAuth();
+  });
+  document.getElementById('picker-close').addEventListener('click', closePicker);
+  document.getElementById('picker-cancel').addEventListener('click', closePicker);
+  document.getElementById('picker-use').addEventListener('click', useCurrentFolder);
+  document.getElementById('picker-overlay').addEventListener('click', function (e) {
+    if (e.target === this) closePicker();
+  });
+
+  syncLoadButton();
+  renderEmpty();
+
+  handleAuthRedirect().then(function (justSignedIn) {
+    syncLoadButton();
+    renderEmpty();
+    if (justSignedIn) openPicker();
+  });
 </script>
 </body>
 </html>
