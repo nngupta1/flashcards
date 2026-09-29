@@ -378,6 +378,7 @@
 
 <div class="controls">
   <button class="btn btn-primary" id="load-btn"></button>
+  <button class="btn btn-ghost" id="change-folder-btn" style="display:none">Change folder</button>
   <button class="btn btn-ghost" id="shuffle-btn" onclick="toggleShuffle()">&#8644; Shuffle</button>
   <button class="btn btn-ghost" id="restart-btn" onclick="restart()" style="display:none">&#8634; Restart</button>
   <span class="progress-text" id="progress-text"></span>
@@ -741,17 +742,18 @@
 
   /* ---------- loading cards from a folder ---------- */
 
+  // Resolves true if cards were loaded (and the folder remembered), false otherwise.
   function loadFolderCards(path, recursive, label) {
     setStatus('Reading ' + label + '…');
     renderEmpty('Reading folder…');
 
-    listFolder(path, recursive)
+    return listFolder(path, recursive)
       .then(function (entries) {
         var files = entries.filter(isMd).sort(byName);
         if (!files.length) {
           renderEmpty('No .md files found in that folder.');
           setStatus('');
-          return;
+          return false;
         }
         setStatus('Loading ' + files.length + ' card' + (files.length !== 1 ? 's' : '') + '…');
         return fetchAll(files).then(function (results) {
@@ -759,7 +761,7 @@
           if (!cards.length) {
             renderEmpty('Could not read any of those files.');
             setStatus('Could not load any cards.', true);
-            return;
+            return false;
           }
           var failed = files.length - cards.length;
           buildOrder();
@@ -767,12 +769,62 @@
           showCard();
           document.getElementById('restart-btn').style.display = '';
           setStatus(failed ? failed + ' file' + (failed !== 1 ? 's' : '') + ' could not be read.' : '', !!failed);
+          saveFolder(path, recursive, label);
+          return true;
         });
       })
       .catch(function (e) {
         renderEmpty('Could not open that folder.');
         setStatus(shortErr(e), true);
+        return false;
       });
+  }
+
+  /* ---------- remembered folder ---------- */
+
+  var FOLDER_PATH_KEY = 'dbx_folder_path';
+  var FOLDER_NAME_KEY = 'dbx_folder_name';
+  var FOLDER_RECURSE_KEY = 'dbx_folder_recursive';
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  // Note: '' is a valid path (Dropbox root), so test against null.
+  function hasSavedFolder() { return lsGet(FOLDER_PATH_KEY) !== null; }
+
+  function saveFolder(path, recursive, label) {
+    lsSet(FOLDER_PATH_KEY, path);
+    lsSet(FOLDER_NAME_KEY, label);
+    lsSet(FOLDER_RECURSE_KEY, recursive ? '1' : '0');
+    syncChangeButton();
+  }
+
+  function clearSavedFolder() {
+    lsDel(FOLDER_PATH_KEY);
+    lsDel(FOLDER_NAME_KEY);
+    lsDel(FOLDER_RECURSE_KEY);
+    syncChangeButton();
+  }
+
+  function syncChangeButton() {
+    document.getElementById('change-folder-btn').style.display = hasSavedFolder() ? '' : 'none';
+  }
+
+  // Loads the remembered folder; falls back to the picker if that fails.
+  function autoLoadSavedFolder() {
+    var path = lsGet(FOLDER_PATH_KEY);
+    var label = lsGet(FOLDER_NAME_KEY) || 'Dropbox';
+    var recursive = lsGet(FOLDER_RECURSE_KEY) === '1';
+    document.getElementById('recurse-check').checked = recursive;
+    loadFolderCards(path, recursive, label).then(function (ok) {
+      if (!ok) openPicker();
+    });
+  }
+
+  function changeFolder() {
+    clearSavedFolder();
+    openPicker();
   }
 
   // Downloads with a small concurrency cap so a big folder doesn't
@@ -1020,13 +1072,17 @@
     if (e.target === this) closePicker();
   });
 
+  document.getElementById('change-folder-btn').addEventListener('click', changeFolder);
+
   syncLoadButton();
+  syncChangeButton();
   renderEmpty();
 
   handleAuthRedirect().then(function (justSignedIn) {
     syncLoadButton();
     renderEmpty();
-    if (justSignedIn) openPicker();
+    if (getToken() && hasSavedFolder()) autoLoadSavedFolder();
+    else if (justSignedIn) openPicker();
   });
 </script>
 </body>
