@@ -366,6 +366,22 @@
   .picker-check input { accent-color: #4f6ef7; }
   .btn:disabled { opacity: 0.45; cursor: default; }
 
+  /* Folder buttons: transparent wrapper on desktop, own single line on mobile. */
+  .controls-folder { display: contents; }
+
+  @media (max-width: 480px) {
+    .controls { gap: 6px; margin-bottom: 14px; }
+    .controls-folder {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+    }
+    .btn { padding: 6px 12px; font-size: 12px; }
+    .btn .emoji { display: none; }
+  }
+
   @media (max-width: 420px) {
     .picker-check { flex-basis: 100%; margin-right: 0; margin-bottom: 4px; }
     #picker-cancel { margin-left: auto; }
@@ -377,8 +393,10 @@
 <h1>MD Flashcards</h1>
 
 <div class="controls">
-  <button class="btn btn-primary" id="load-btn"></button>
-  <button class="btn btn-ghost" id="change-folder-btn" style="display:none">Change folder</button>
+  <div class="controls-folder">
+    <button class="btn btn-ghost" id="load-btn"></button>
+    <button class="btn btn-ghost" id="change-folder-btn" style="display:none">Change folder</button>
+  </div>
   <button class="btn btn-ghost" id="shuffle-btn" onclick="toggleShuffle()">&#8644; Shuffle</button>
   <button class="btn btn-ghost" id="restart-btn" onclick="restart()" style="display:none">&#8634; Restart</button>
   <span class="progress-text" id="progress-text"></span>
@@ -1059,7 +1077,10 @@
 
   function syncLoadButton() {
     var btn = document.getElementById('load-btn');
-    btn.textContent = getToken() ? '📂 Choose folder' : 'Connect Dropbox';
+    var connected = !!getToken();
+    btn.innerHTML = connected ? '<span class="emoji">📂 </span>Choose folder' : 'Connect Dropbox';
+    // Connect stays the primary call to action; Choose folder matches Change folder.
+    btn.className = 'btn ' + (connected ? 'btn-ghost' : 'btn-primary');
   }
 
   document.getElementById('load-btn').addEventListener('click', function () {
