@@ -366,20 +366,19 @@
   .picker-check input { accent-color: #4f6ef7; }
   .btn:disabled { opacity: 0.45; cursor: default; }
 
-  /* Folder buttons: transparent wrapper on desktop, own single line on mobile. */
-  .controls-folder { display: contents; }
+  .btn-icon { padding-left: 10px; padding-right: 10px; }
 
   @media (max-width: 480px) {
-    .controls { gap: 6px; margin-bottom: 14px; }
-    .controls-folder {
-      display: flex;
+    .controls {
       flex-wrap: nowrap;
-      justify-content: center;
+      justify-content: flex-start;
       gap: 6px;
-      width: 100%;
+      margin-bottom: 14px;
     }
-    .btn { padding: 6px 12px; font-size: 12px; }
+    .btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+    .btn-icon { padding-left: 8px; padding-right: 8px; }
     .btn .emoji { display: none; }
+    .progress-text { min-width: 0; font-size: 11px; white-space: nowrap; }
   }
 
   @media (max-width: 420px) {
@@ -393,12 +392,10 @@
 <h1>MD Flashcards</h1>
 
 <div class="controls">
-  <div class="controls-folder">
-    <button class="btn btn-ghost" id="load-btn"></button>
-    <button class="btn btn-ghost" id="change-folder-btn" style="display:none">Change folder</button>
-  </div>
-  <button class="btn btn-ghost" id="shuffle-btn" onclick="toggleShuffle()">&#8644; Shuffle</button>
-  <button class="btn btn-ghost" id="restart-btn" onclick="restart()" style="display:none">&#8634; Restart</button>
+  <button class="btn btn-ghost" id="load-btn"></button>
+  <button class="btn btn-ghost btn-icon" id="change-folder-btn" title="Change folder" aria-label="Change folder" style="display:none">🗂</button>
+  <button class="btn btn-ghost" id="shuffle-btn" onclick="toggleShuffle()"><span class="emoji">&#8644; </span>Shuffle</button>
+  <button class="btn btn-ghost" id="restart-btn" onclick="restart()" style="display:none"><span class="emoji">&#8634; </span>Restart</button>
   <span class="progress-text" id="progress-text"></span>
 </div>
 
